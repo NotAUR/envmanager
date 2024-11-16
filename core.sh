@@ -10,24 +10,18 @@ s_mktemp() {
 }
 
 s_set_variables() {
-  # If _ENVMANAGER_SESSION_LOGS_FOLDER is not set, set it to $ENVMANAGER_LOGS_DIR/logs
-  if [ -z "${_ENVMANAGER_SESSION_LOGS_FOLDER}" ]; then
-    export _ENVMANAGER_SESSION_LOGS_FOLDER
-    _ENVMANAGER_SESSION_LOGS_FOLDER="$(s_mktemp -d)"
+  if [[ ! -f "${ENVMANAGER_LOGS_DIR}/session.log" ]]; then
+    touch "${ENVMANAGER_LOGS_DIR}/session.log"
   fi
 }
 
 # Return the path to the logs file. Relies on the environment variable and the date it was created
 s_log_file() {
-  s_set_variables
+  printf '%s' "${ENVMANAGER_LOGS_DIR}/session.log"
+}
 
-  if [ -z "${_S_LOG_FILE_NAME}" ]; then
-    # Include date and time
-    export _S_LOG_FILE_NAME
-    _S_LOG_FILE_NAME="${_ENVMANAGER_SESSION_LOGS_FOLDER}/$(date +"%Y-%m-%d_%H-%M-%S").log"
-  fi
-
-  printf '%s' "$_S_LOG_FILE_NAME"
+s_syslog() {
+  systemd-cat -t envmanager "$@"
 }
 
 # Core `print` shell script function
@@ -38,14 +32,13 @@ s_printf() {
   # If no arguments are passed, print a trace
   if (( $# > 0 )); then
     # Print log prefix information
-    printf "%s | " "${prefix}"
+    s_syslog printf "%s | " "${prefix}"
 
     # Print the actual log message
-    printf "$@"
+    s_syslog printf "$@"
   else
     # Print the line number where the function was called
-    printf "Local 'print' function was called from line \"%s\" with not enough arguments! Exiting...\n" "${funcstack[2]}"
-    exit 1
+    s_syslog printf "Local 'print' function was called from line \"%s\" with not enough arguments! Exiting...\n" "${funcstack[2]}"
   fi
 }
 
@@ -53,26 +46,13 @@ s_printf() {
 s_print() {
   s_set_variables
 
-  local tmp_line_file
-  tmp_line_file="$(s_log_file)"
-
-  s_printf "$@" >> "$tmp_line_file"
-
-  # Print to stdout if DEBUG environment variable is set to 'y'
-  if [[ "$DEBUG" == "y" ]]; then
-    cat "$tmp_line_file"
-  fi
+  s_printf "$@"
 }
 
 s_print_error() {
-  local line_tmp_file
-  line_tmp_file="$(s_mktemp)"
-
   # Use `sprint` to print to `stderr` message
-  s_printf "$@" > "${line_tmp_file}"
-
-  # Print to `stderr`
-  cat "${line_tmp_file}" 1>&2
+  s_printf 'Error:\n'
+  s_printf "$@"
 }
 
 s_split_string() {
@@ -152,6 +132,18 @@ s_environment() {
     current_value="${!var_name}"
   fi
 
+#  s_print '%s:\n\n' "$var_name"
+#
+#  local previous_variable_values
+#  previous_variable_values="$(s_mktemp)"
+#
+#  local current_variable_values
+#  current_variable_values="$(s_mktemp)"
+#
+#  printf '%s\n' "$(s_split_string "$current_value" ":")" > "$previous_variable_values"
+#  s_print 'Previous: %s\n' "$previous_variable_values"
+
+  s_environment_cache_previous_value "${var_name}" "${current_value}"
 
   # Check if the new_path is already present in the current_value
   if [[ ":${current_value}:" != *":${new_path}:"* ]]; then
@@ -159,8 +151,6 @@ s_environment() {
       # If the variable is empty, just set it to the new path
       current_value="${new_path}"
     else
-      s_environment_cache_previous_value "${var_name}" "${current_value}"
-
       # Append or prepend the new path based on the mode
       if [ "$mode" = "prepend" ]; then
         current_value="${new_path}:${current_value}"
@@ -170,11 +160,20 @@ s_environment() {
     fi
   fi
 
+#  s_print 'Current: %s\n' "$current_variable_values"
+#
+#  printf '%s\n' "$(s_split_string "$current_value" ":")" > "$current_variable_values"
+#
+#  s_print '\n%s\n' "$(diff --color=always "$previous_variable_values" "$current_variable_values")"
+#  s_print '%s\n' "$(rm -fv "$previous_variable_values" "$current_variable_values")"
+
   # Export the variable with the new value
   export "${var_name}"="${current_value}"
 
   local envmanager_variable_history_file="$ENVMANAGER_CACHE_DIR"/"${var_name}_history"
   printf '%s\n' "${current_value}" >> "${envmanager_variable_history_file}"
+
+#  s_print '\n\n'
 }
 
 s_append() {

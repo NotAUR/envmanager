@@ -23,7 +23,7 @@ export ENVMANAGER_INIT_DIRECTORY="${ENVMANAGER_CONFIG_DIR}/init.d"
 export ENVMANAGER_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/envmanager"
 
 # EnvManager user temp directory
-export ENVMANAGER_TEMP_DIR="${XDG_RUNTIME_DIR}/envmanager"
+export ENVMANAGER_TEMP_DIR="${XDG_RUNTIME_DIR:-/var/run}/envmanager"
 
 # EnvManager user logs directory
 export ENVMANAGER_LOGS_DIR="${ENVMANAGER_CACHE_DIR}/logs"

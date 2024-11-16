@@ -53,7 +53,8 @@ envmanager_init() {
     "$@"
   )
   # SHA-512 hash of all directories
-  local directories_hash=$(find "${search_directory_list[@]}" -type f -exec sha512sum {} + | sha512sum | awk '{print $1}')
+#  local directories_hash=$(find "${search_directory_list[@]}" -type f -exec sha512sum {} + | sha512sum | awk '{print $1}')
+  local directories_hash=$(printf '%s\n' "${search_directory_list[@]}" | sha512sum | awk '{print $1}')
   local shell_script_files=()
   local init_directory_cached_list="$ENVMANAGER_CACHE_DIR"/"${directories_hash}"
 
@@ -82,7 +83,7 @@ envmanager_init() {
 
       # Create temporary log file
       local rsync_temp_log_file
-      rsync_temp_log_file="$(s_mktemp)"
+      rsync_temp_log_file="$(s_log_file)"
 
       local rsync_arguments=(
         -avz --progress
